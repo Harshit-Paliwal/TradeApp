@@ -1,0 +1,182 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Auth UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, format: email)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional, format: uri)
+    //   - balance: number (required, >= 0)
+    //   - totalInvested: number (optional)
+    //   - riskTolerance: string (optional, enum: ["low", "medium", "high"])
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: trades
+    // Document ID: {tradeId}
+    // Fields:
+    //   - userId: string (required)
+    //   - symbol: string (required)
+    //   - type: string (required, enum: ["buy", "sell"])
+    //   - quantity: number (required, > 0)
+    //   - price: number (required, > 0)
+    //   - totalAmount: number (required, > 0)
+    //   - timestamp: timestamp (required)
+    //   - status: string (required, enum: ["completed", "pending", "failed"])
+    //
+    // Collection: holdings
+    // Document ID: {holdingId}
+    // Fields:
+    //   - userId: string (required)
+    //   - symbol: string (required)
+    //   - name: string (optional)
+    //   - quantity: number (required, >= 0)
+    //   - avgPrice: number (required, > 0)
+    //   - lastUpdated: timestamp (required)
+    //
+    // Collection: watchlist
+    // Document ID: {itemId}
+    // Fields:
+    //   - userId: string (required)
+    //   - symbol: string (required)
+    //   - addedAt: timestamp (required)
+    //
+    // Collection: notifications
+    // Document ID: {notificationId}
+    // Fields:
+    //   - userId: string (required)
+    //   - title: string (required)
+    //   - message: string (required)
+    //   - type: string (required, enum: ["info", "success", "warning", "error"])
+    //   - read: bool (required)
+    //   - timestamp: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && (
+        (resource != null && request.auth.uid == resource.data.userId) ||
+        (resource == null && request.auth.uid == request.resource.data.userId)
+      );
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'balance', 'createdAt', 'updatedAt']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'balance', 'totalInvested', 'riskTolerance', 'createdAt', 'updatedAt']) &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.balance is number &&
+             (!('riskTolerance' in data) || data.riskTolerance in ['low', 'medium', 'high']);
+    }
+
+    function isValidTrade(data) {
+      return hasRequiredFields(['userId', 'symbol', 'type', 'quantity', 'price', 'totalAmount', 'timestamp', 'status']) &&
+             hasOnlyAllowedFields(['userId', 'symbol', 'type', 'quantity', 'price', 'totalAmount', 'timestamp', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.type in ['buy', 'sell'] &&
+             data.quantity is number && data.quantity > 0 &&
+             data.price is number && data.price > 0 &&
+             data.totalAmount is number && data.totalAmount > 0 &&
+             data.status in ['completed', 'pending', 'failed'];
+    }
+
+    function isValidHolding(data) {
+      return hasRequiredFields(['userId', 'symbol', 'quantity', 'avgPrice', 'lastUpdated']) &&
+             hasOnlyAllowedFields(['userId', 'symbol', 'name', 'quantity', 'avgPrice', 'lastUpdated']) &&
+             data.userId == request.auth.uid &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.avgPrice is number && data.avgPrice > 0;
+    }
+
+    function isValidWatchlist(data) {
+      return hasRequiredFields(['userId', 'symbol', 'addedAt']) &&
+             hasOnlyAllowedFields(['userId', 'symbol', 'addedAt']) &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidNotification(data) {
+      return hasRequiredFields(['userId', 'title', 'message', 'type', 'read', 'timestamp']) &&
+             hasOnlyAllowedFields(['userId', 'title', 'message', 'type', 'read', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.type in ['info', 'success', 'warning', 'error'] &&
+             data.read is bool;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /trades/{tradeId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidTrade(request.resource.data);
+      allow update: if false; // Trades should be immutable
+      allow delete: if false;
+    }
+
+    match /holdings/{holdingId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidHolding(request.resource.data);
+      allow update: if isDocOwner() && isValidHolding(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /watchlist/{itemId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidWatchlist(request.resource.data);
+      allow update: if isDocOwner() && isValidWatchlist(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isDocOwner();
+      allow create: if false; // Only server/system should create notifications (simulated here)
+      allow update: if isDocOwner() && hasOnlyAllowedFields(['read']) && request.resource.data.read is bool;
+      allow delete: if isDocOwner();
+    }
+  }
+}

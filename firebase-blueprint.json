@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user account information and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth." },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "balance": { "type": "number", "description": "Current cash balance in INR." },
+        "totalInvested": { "type": "number" },
+        "riskTolerance": { "type": "string", "enum": ["low", "medium", "high"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "balance"]
+    },
+    "Trade": {
+      "title": "Trade Transaction",
+      "description": "Records of buy and sell transactions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "type": { "type": "string", "enum": ["buy", "sell"] },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["completed", "pending", "failed"] }
+      },
+      "required": ["userId", "symbol", "type", "quantity", "price", "totalAmount", "timestamp"]
+    },
+    "Holding": {
+      "title": "Portfolio Holding",
+      "description": "Current stocks held by the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "quantity": { "type": "number" },
+        "avgPrice": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol", "quantity", "avgPrice"]
+    },
+    "WatchlistItem": {
+      "title": "Watchlist Item",
+      "description": "Stocks the user is tracking.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "symbol": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "symbol"]
+    },
+    "Notification": {
+      "title": "User Notification",
+      "description": "Alerts and updates for the user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "success", "warning", "error"] },
+        "read": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document."
+    },
+    "/trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Individual trade records."
+    },
+    "/holdings/{holdingId}": {
+      "schema": "Holding",
+      "description": "User stock holdings."
+    },
+    "/watchlist/{itemId}": {
+      "schema": "WatchlistItem",
+      "description": "User watchlist stocks."
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User notifications."
+    }
+  }
+}

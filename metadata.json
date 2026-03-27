@@ -1,0 +1,5 @@
+{
+  "name": "FinTrade AI",
+  "description": "A production-ready stock trading platform with real-time data, AI-powered recommendations, and simulated trading for Equity, Futures, and Options.",
+  "requestFramePermissions": []
+}
