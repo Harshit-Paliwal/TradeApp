@@ -4,51 +4,72 @@ import { calculateRSI, calculateSMA, calculateMACD } from '../lib/utils';
 export const aiService = {
   async getRecommendation(symbol: string, historicalData: HistoricalData[]): Promise<Recommendation> {
     const prices = historicalData.map(d => d.close);
+    const volumes = historicalData.map(d => d.volume || 0);
+
     const rsi = calculateRSI(prices);
     const sma20 = calculateSMA(prices, 20);
     const sma50 = calculateSMA(prices, 50);
     const { macd, signal } = calculateMACD(prices);
+
+    const latestPrice = prices[prices.length - 1];
+    const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+    const latestVolume = volumes[volumes.length - 1];
 
     let recommendationSignal: 'buy' | 'sell' | 'hold' = 'hold';
     let confidence = 0.5;
     let riskLevel: 'low' | 'medium' | 'high' = 'medium';
     let explanation = '';
 
-    // RSI Logic
+    // 🔹 RSI
     if (rsi < 30) {
       recommendationSignal = 'buy';
       confidence += 0.2;
-      explanation += 'RSI is below 30, indicating the stock is oversold. ';
+      explanation += 'RSI < 30 (Oversold). ';
     } else if (rsi > 70) {
       recommendationSignal = 'sell';
       confidence += 0.2;
-      explanation += 'RSI is above 70, indicating the stock is overbought. ';
+      explanation += 'RSI > 70 (Overbought). ';
     }
 
-    // SMA Crossover Logic
+    // 🔹 SMA Trend
     if (sma20 > sma50) {
-      if (recommendationSignal === 'buy') confidence += 0.1;
+      if (recommendationSignal === 'buy') confidence += 0.15;
       else if (recommendationSignal === 'hold') recommendationSignal = 'buy';
-      explanation += 'The 20-day SMA is above the 50-day SMA, suggesting a bullish trend. ';
+
+      explanation += 'Bullish SMA crossover. ';
     } else {
-      if (recommendationSignal === 'sell') confidence += 0.1;
+      if (recommendationSignal === 'sell') confidence += 0.15;
       else if (recommendationSignal === 'hold') recommendationSignal = 'sell';
-      explanation += 'The 20-day SMA is below the 50-day SMA, suggesting a bearish trend. ';
+
+      explanation += 'Bearish SMA crossover. ';
     }
 
-    // MACD Logic
+    // 🔹 MACD
     if (macd > signal) {
-      if (recommendationSignal === 'buy') confidence += 0.1;
-      explanation += 'The MACD line is above the signal line, confirming bullish momentum. ';
+      confidence += 0.1;
+      explanation += 'MACD bullish. ';
     } else {
-      if (recommendationSignal === 'sell') confidence += 0.1;
-      explanation += 'The MACD line is below the signal line, confirming bearish momentum. ';
+      confidence += 0.1;
+      explanation += 'MACD bearish. ';
     }
 
-    // Risk Level based on RSI and SMA distance
-    const smaDist = Math.abs(sma20 - sma50) / sma50;
-    if (smaDist > 0.1) riskLevel = 'high';
-    else if (smaDist > 0.05) riskLevel = 'medium';
+    // 🔹 Volume Confirmation (NEW 🔥)
+    if (latestVolume > avgVolume * 1.5) {
+      confidence += 0.1;
+      explanation += 'High volume confirms trend. ';
+    }
+
+    // 🔹 Price vs SMA (Momentum)
+    if (latestPrice > sma20) {
+      confidence += 0.05;
+      explanation += 'Price above SMA20 (strong momentum). ';
+    }
+
+    // 🔹 Risk Calculation
+    const volatility = Math.max(...prices) - Math.min(...prices);
+
+    if (volatility / latestPrice > 0.1) riskLevel = 'high';
+    else if (volatility / latestPrice > 0.05) riskLevel = 'medium';
     else riskLevel = 'low';
 
     return {

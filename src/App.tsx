@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from './firebase';
+
 import {
   getUserProfile,
   createUserProfile,
@@ -35,6 +36,7 @@ import NotificationsOverlay from './components/NotificationsOverlay';
 import { stockService } from './services/stockService';
 import { StockData, HistoricalData } from './types';
 
+// ================= STOCK DETAILS CONTAINER =================
 function StockDetailsContainer({
   symbol,
   onBack,
@@ -95,6 +97,7 @@ function StockDetailsContainer({
   );
 }
 
+// ================= MAIN APP =================
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -109,7 +112,7 @@ export default function App() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
-  // ✅ AUTH + PROFILE FIX (MAIN FIX)
+  // ================= AUTH =================
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -139,16 +142,16 @@ export default function App() {
         }
       } catch (error) {
         console.error('Auth/Profile Error:', error);
-        setProfile(null); // ✅ prevents infinite loading
+        setProfile(null);
       }
 
-      setLoading(false); // ✅ ALWAYS executes
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // ✅ FAILSAFE LOADING STOP
+  // ================= FAILSAFE =================
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
@@ -157,7 +160,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // ✅ REALTIME SUBSCRIPTIONS SAFE
+  // ================= REALTIME FIREBASE =================
   useEffect(() => {
     if (!user) return;
 
@@ -178,6 +181,25 @@ export default function App() {
     }
   }, [user]);
 
+  // ================= WATCHLIST HANDLER =================
+  const handleAddToWatchlist = async (symbol: string) => {
+    if (!user) return;
+
+    const isWatched = watchlist.some(item => item.symbol === symbol);
+
+    try {
+      if (isWatched) {
+        const item = watchlist.find(i => i.symbol === symbol);
+        if (item?.id) await removeFromWatchlist(item.id);
+      } else {
+        await addToWatchlist(user.uid, symbol);
+      }
+    } catch (error) {
+      console.error('Watchlist error:', error);
+    }
+  };
+
+  // ================= LOADING =================
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-white">
@@ -190,6 +212,7 @@ export default function App() {
     return <Auth />;
   }
 
+  // ================= ROUTING =================
   const renderContent = () => {
     if (selectedStock) {
       return (
@@ -197,25 +220,50 @@ export default function App() {
           symbol={selectedStock}
           onBack={() => setSelectedStock(null)}
           watchlist={watchlist}
-          onAddToWatchlist={() => {}}
+          onAddToWatchlist={handleAddToWatchlist}
         />
       );
     }
 
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard profile={profile} holdings={holdings} trades={trades} onSelectStock={setSelectedStock} />;
+        return (
+          <Dashboard
+            profile={profile}
+            holdings={holdings}
+            trades={trades}
+            onSelectStock={setSelectedStock}
+          />
+        );
+
       case 'market':
-        return <Market onSelectStock={setSelectedStock} />;
+        return (
+          <Market
+            onSelectStock={setSelectedStock}
+            onAddToWatchlist={handleAddToWatchlist}
+            watchlist={watchlist}
+          />
+        );
+
       case 'history':
         return <History trades={trades} />;
+
       case 'profile':
         return <Profile profile={profile} />;
+
       default:
-        return <Dashboard profile={profile} holdings={holdings} trades={trades} onSelectStock={setSelectedStock} />;
+        return (
+          <Dashboard
+            profile={profile}
+            holdings={holdings}
+            trades={trades}
+            onSelectStock={setSelectedStock}
+          />
+        );
     }
   };
 
+  // ================= UI =================
   return (
     <ErrorBoundary>
       <Layout

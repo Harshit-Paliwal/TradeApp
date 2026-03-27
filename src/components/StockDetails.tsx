@@ -19,15 +19,16 @@ export default function StockDetails({ stock, historicalData, onBack, onTrade, o
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchRec = async () => {
-      setLoading(true);
-      const rec = await aiService.getRecommendation(stock.symbol, historicalData);
-      setRecommendation(rec);
-      setLoading(false);
-    };
-    fetchRec();
-  }, [stock.symbol, historicalData]);
+useEffect(() => {
+  if (!historicalData.length) return;
+
+  const runAI = async () => {
+    const result = await aiService.getRecommendation(stock.symbol, historicalData);
+    setRecommendation(result);
+  };
+
+  runAI();
+}, [historicalData]);
 
   return (
     <div className="space-y-8 pb-12">
